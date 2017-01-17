@@ -35,3 +35,44 @@ tgt.cases <- which(ALL$BT %in% levels(ALL$BT)[1:5] & # OH SHIT! LEVELS CAN ISOLA
 ALLb <- ALL[,tgt.cases]
 # Checks out. Has 94 samples and everything else looks about right.
 
+# Updating the BT and mol.bio variables to factors
+ALLb$BT <- factor(ALLb$BT)
+ALLb$mol.bio <- factor(ALLb$mol.bio)
+
+#Pre-processing steps done.
+# ------------------------------------------------
+# Exploring the dataset
+es <- exprs(ALLb)
+dim(es)
+# Matrix has 12,625 rows (genes/features) and 94 columns (samples/cases)
+
+# In terms of dimensionality, there are way too many variables for the number of cases. First goal will be to eliminate some of the
+# genes from our analysis to reduce dimensionality. To do this, we will explore the expression levels in the data.
+summary(as.vector(es))
+
+# Better overview can be graphically achieved with 'genefilter' package. Install first.
+# source("http://bioconductor.org/biocLite.R")
+# biocLite("genefilter")
+library("genefilter")
+hist(as.vector(es), breaks = 80, prob=T,
+     xlab = 'Expression Levels',
+     main = 'Histogram of Overall Expression Levels')
+abline(v=c(median(as.vector(es)),
+           shorth(as.vector(es)), # wut does this mean.
+           quantile(as.vector(es), c(0.25, 0.75))),
+       lty=2, col=c(2,3,4,4))
+legend('topright', c('Median','Shorth','1stQ','3rdQ'),
+       lty=2,col=c(2,3,4,4))
+# Dotted lines show the median, first and third quartiles, and the shorth. A shorth is the mean of the values in the shortest half.
+# Shorth is the midpoint of that half, which is the least median of squares estimate of location, and length of the shortest half.
+# Shorth is a robust estimator of the centrality of a continuous distribution that is implemented by the function shorth().
+
+# Now want to know, are teh distributions of the gene expression levels of the samples eith a particular mutation different from
+# each other? 
+sapply(levels(ALLb$mol.bio), function(x) summary(as.vector(es[,
+                                                              which(ALLb$mol.bio == x)])))
+# Things, whatever that means, are fairly similar across these subsets of samples and, moreover, they are similar to the global 
+# distribution of expression levels... Tryng to say this sample is a fair representation of the population?
+
+#----------------------------------------------------------
+# Gene (Feature) Selection
