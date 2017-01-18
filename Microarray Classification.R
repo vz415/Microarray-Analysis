@@ -76,3 +76,66 @@ sapply(levels(ALLb$mol.bio), function(x) summary(as.vector(es[,
 
 #----------------------------------------------------------
 # Gene (Feature) Selection
+# Generally, there are two types of approaches to feature selection: 1. Filters 2. Wrappers
+# Filter approaches are carried out in a single step and use statistical properties of the features to select the final set.
+# Wrappers typically involve a search process where we iterativel look for the set of featuresthat is more adequate for the
+# data mining tools that are applied.==> Feature wrappers have a clear overhead in terms of computational resources....
+# Feature Wrappers Steps: Running the full filter -> model -> evaluate cycle several times until some CONVERGENCE CRITERIA are met.
+
+# First gene filtering methods to described based on info concerning distribution of expression levels.
+# This will show which genes are not expressed at all or show very small variability. The latter means that this cannot be used
+# to differentiate among samples. 
+
+# We can get an overall idea of the dist. of the expression levels of each gene across all individuals with the following graph.
+# Graph will use the median and IQR as representatives of these distributions.
+rowIQRs <- function(em){
+  rowQ(em,ceiling(0.75*ncol(em))) - rowQ(em, floor(0.25*ncol(em)))
+}    # Created a custom function for IQRs
+# rowMedians() function obtains a vector of medians per row. This gets the median expression level of each gene.
+plot(rowMedians(es), rowIQRs(es),
+     xlab='Median expression level',
+     ylab='IQR expression level',
+     main='Main Characteristics of Gene Expression Levels')
+# We can see that a large proportion of the genes have very low variability (IQRs approaching 0). 
+# If hene has a very low variability across all samples, then it is reasonably safe to conclude that it won't be useful 
+# in discriminating the B-Cells. Caveat is, they are dependent, and, in this case, use the RELIEF method.
+
+# Removing any genes with variability < 1/5 --> Just a heuristic threshold. nsFilter() from library(genefilter) can do this filtering.
+library(genefilter)
+ALLb <- nsFilter(ALLb,
+                 var.func=IQR,
+                 var.cutoff=IQR(as.vector(es))/5,
+                 feature.exclude="^AFFX")    # What dis do?
+# Outputs a cool filter log that says: 1. how many duplicates were removed. 2. number of low variance genes removed. 3. features removed
+# 4. and numRemoved ENTREZID, whatever that means. 
+# Were able to reduce to 3,942 genes from initial ~12k. Still have a ways to go, but a good start.
+ALLb
+
+# Update original dataset
+ALLb <- ALLb$eset
+es <- exprs(ALLb)
+dim(es)
+
+# ANOVA Filters
+# If a gene has a distribution of expression values (say, the mean) that is similar across all possible values of the target variable,
+# then it won't be useful to discriminate among these variables. i.e. Genes which have high statistical conf of having the same mean
+# expression level across the roups of samples belonging to each mutation will be discarded from further analysis.
+
+# We have four groups of cases, one for each of the gene mutations of B-cell ALL we are considering. Carry out as follows:
+f <- Anova(ALLb$mol.bio, p = 0.01) # dat p value. mol.bio is the subgroup used in the analysis.
+ff <- filterfun(f) # Creates the filter from the ANOVA
+selGenes <- genefilter(exprs(ALLb), ff)
+# Gets down to 746!
+ALLb <- ALLb[selGenes,]
+ALLb
+
+es <- exprs(ALLb)
+plot(rowMedians(es), rowIQRs(es),
+     xlab='Median expression level',
+     ylab='IQR expression level',
+     main='Distribution properties of the Selected Genes')    # Muuuuuuch better.
+# At this point, could normalize, but some modeling techniques are affected by this result, so abstain for the moment.
+
+#---------------------------------------------
+# Filtering Using Random Forests
+# Random forests can be used to obtain a ranking of the features in terms of their usefulness for a classification task.
